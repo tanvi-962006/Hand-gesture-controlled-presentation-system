@@ -1,0 +1,41 @@
+# Python Bytecode and Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Uploaded Files and Temporary User Assets
+static/uploads/*
+!static/uploads/.gitkeep
+static/snapshots/*
+!static/snapshots/.gitkeep
+
+# Generated Dynamic Slides (Keep demo deck)
+static/slides/*
+!static/slides/demo/
+!static/slides/.gitkeep
+
+# Large Presentation Files & Temporary Uploads
+*.pdf
+*.pptx
+*.ppt
+
+# Project Guide & Documentation Notes (Ignored as requested)
+PROJECT_EXPLANATION_GUIDE.md
+PROJECT_EXPLANATION_AND_VIVA_GUIDE.md
+PROJECT_EXPLANATION_AND_VIVA_GUIDE.txt
+
+# IDE & OS Configuration
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

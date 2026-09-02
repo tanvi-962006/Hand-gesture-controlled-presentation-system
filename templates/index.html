@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroSense AI — Spatial Computing & Smart AI Studio</title>
+    <meta name="description" content="Spatial computing studio featuring touchless air whiteboard, AI geometric shape snapping, 3D diagram inspector, and multi-modal presentation controls.">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('favicon') }}">
+    <link rel="alternate icon" href="/favicon.ico">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20.0">
+    
+    <!-- Three.js (Lightweight WebGL 3D Engine for 3D Spatial Inspector) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <!-- MediaPipe & Confetti Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4.1675469240/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.4.1675469240/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+
+<body>
+
+    <!-- ── Header Top Navigation Bar ── -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <div class="logo">✨</div>
+            <div class="brand-text">
+                <span class="app-name">AeroSense</span>
+                <span class="ai-tag">SPATIAL STUDIO</span>
+            </div>
+        </div>
+
+        <!-- ── Central Mode Switcher Bar ── -->
+        <div class="topbar-center">
+            <div class="mode-switcher-pill">
+                <button class="mode-btn active" id="modeWhiteboardBtn" data-mode="whiteboard">
+                    <span>🖌️</span> Air Whiteboard
+                </button>
+                <button class="mode-btn" id="modeDeckBtn" data-mode="deck">
+                    <span>📄</span> Spatial Deck
+                </button>
+                <button class="mode-btn" id="mode3DBtn" data-mode="model3d">
+                    <span>🌐</span> 3D Inspector
+                </button>
+            </div>
+        </div>
+
+        <div class="topbar-right">
+            <!-- Camera Toggle -->
+            <button id="toggleCamBtn" class="chip chip-cam" title="Toggle AI Spatial Hand Tracking">
+                <span class="dot dot-off" id="pipStatusDot"></span>
+                <span id="camBtnText">Start Camera</span>
+            </button>
+
+            <!-- Voice Control AI -->
+            <button id="voiceControlBtn" class="chip chip-tool" title="Toggle Hands-Free Voice Commands">
+                <span id="voiceMicIcon">🎙️</span> Voice AI
+            </button>
+
+            <!-- Upload Deck (Deck Mode) -->
+            <button id="uploadModalBtn" class="chip chip-upload" title="Upload PDF or PPTX Deck">
+                <span>⬆</span> Upload Deck
+            </button>
+
+            <!-- Session Analytics -->
+            <button id="analyticsModalBtn" class="chip chip-tool" title="View Workspace & Presentation Analytics">
+                <span>📊</span> Analytics
+            </button>
+
+            <!-- Settings Modal -->
+            <button id="settingsModalBtn" class="chip chip-icon" title="Studio & Gesture Settings">
+                <span>⚙️</span>
+            </button>
+
+            <!-- Fullscreen Toggle -->
+            <button id="fullscreenBtn" class="chip chip-icon" title="Toggle Fullscreen (F)">
+                <span>⛶</span>
+            </button>
+
+            <!-- Audio Sound FX -->
+            <button id="soundFxBtn" class="chip chip-icon" title="Toggle Web Audio Sound FX">
+                <span id="soundFxText">🔊</span>
+            </button>
+
+            <!-- Help / Cheatsheet -->
+            <button id="helpModalBtn" class="chip chip-icon chip-help" title="Spatial Gestures Guide">
+                <span>?</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Top Progress Line -->
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="presentationProgressBar" style="width: 20%;"></div>
+    </div>
+
+    <!-- ── Main Studio Body ── -->
+    <div class="app-body">
+
+        <!-- ── Left Floating Spatial Tool Dock ── -->
+        <aside class="sidebar">
+
+            <!-- Camera PiP Card -->
+            <div class="sidebar-card cam-card">
+                <div class="card-header">
+                    <span class="card-icon">📹</span>
+                    <span class="card-title">Hand Tracking Camera</span>
+                    <span class="card-badge" id="camStatusBadge">Ready</span>
+                </div>
+                <div class="cam-viewport" id="camViewportBox" title="Click to Toggle Camera">
+                    <video id="webcamVideo" playsinline muted></video>
+                    <canvas id="handCanvas"></canvas>
+                    <div class="cam-scanline"></div>
+                    <div class="cam-start-overlay" id="camStartOverlay">
+                        <span class="cam-start-icon">📹</span>
+                        <strong>Click to Start Camera</strong>
+                        <p>Enables Spatial Hand Gestures</p>
+                    </div>
+                </div>
+                <button id="sidebarCamToggleBtn" class="sidebar-cam-btn">
+                    <span>📹</span> <span id="sidebarCamText">Turn On Camera</span>
+                </button>
+            </div>
+
+            <!-- Gesture HUD Feedback Card -->
+            <div class="sidebar-card gesture-card" id="gestureHUD">
+                <div class="card-header">
+                    <span class="card-icon">⚡</span>
+                    <span class="card-title">Live Gesture</span>
+                    <span class="card-badge confidence-badge" id="confidenceBadge">100%</span>
+                </div>
+                <div class="gesture-display">
+                    <div class="gesture-avatar" id="hudIcon">🖐</div>
+                    <div class="gesture-info">
+                        <span class="gesture-state-label" id="activeModeBadge">Air Whiteboard</span>
+                        <span class="gesture-name" id="hudGestureName">Camera Off</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spatial Drawing & Vector Shape Dock -->
+            <div class="sidebar-card draw-card" id="drawingToolsCard">
+                <div class="card-header">
+                    <span class="card-icon">🎨</span>
+                    <span class="card-title">Creative Tools</span>
+                </div>
+
+                <!-- Tool Buttons Grid -->
+                <div class="tool-buttons-grid">
+                    <button class="tool-btn active" id="toolPenBtn" data-tool="pen" title="Neon Glow Pen (Pinch / Point)">
+                        <span>✏️</span> Neon Pen
+                    </button>
+                    <button class="tool-btn" id="toolRainbowBtn" data-tool="rainbow" title="Rainbow Flow Chromatic Pen">
+                        <span>🌈</span> Rainbow
+                    </button>
+                    <button class="tool-btn" id="toolSparklerBtn" data-tool="sparkler" title="Magic Star Sparkler Brush">
+                        <span>✨</span> Sparkler
+                    </button>
+                    <button class="tool-btn" id="toolShapeSnapperBtn" data-tool="shape" title="AI Shape Snapping (Circle, Box, Line, Triangle)">
+                        <span>📐</span> Shape AI
+                    </button>
+                    <button class="tool-btn" id="toolLaserBtn" data-tool="laser" title="Sci-Fi Laser Pointer with Energy Trail">
+                        <span>🔴</span> Laser Beam
+                    </button>
+                    <button class="tool-btn" id="toolSpotlightBtn" data-tool="spotlight" title="Spotlight Focus Beam">
+                        <span>🔦</span> Spotlight
+                    </button>
+                    <button class="tool-btn" id="toolEraserBtn" data-tool="eraser" title="Air Eraser (Fist / Pinch)">
+                        <span>🧹</span> Air Eraser
+                    </button>
+                </div>
+
+                <!-- Neon Palette -->
+                <div class="palette-container">
+                    <span class="palette-label">Color:</span>
+                    <div class="palette" id="colorPalette">
+                        <div class="swatch active" data-color="#ff4d6d" style="background:#ff4d6d" title="Laser Rose"></div>
+                        <div class="swatch" data-color="#06d6a0" style="background:#06d6a0" title="Emerald Green"></div>
+                        <div class="swatch" data-color="#ffd166" style="background:#ffd166" title="Electric Amber"></div>
+                        <div class="swatch" data-color="#8b5cf6" style="background:#8b5cf6" title="Cyber Violet"></div>
+                        <div class="swatch" data-color="#00bbf9" style="background:#00bbf9" title="Neon Cyan"></div>
+                        <div class="swatch" data-color="#ffffff" style="background:#ffffff" title="Pure White"></div>
+                    </div>
+                </div>
+
+                <!-- Stroke Size Selection -->
+                <div class="brush-size-row">
+                    <span class="palette-label">Size:</span>
+                    <button class="size-chip" data-size="3">Fine</button>
+                    <button class="size-chip active" data-size="6">Medium</button>
+                    <button class="size-chip" data-size="14">Bold</button>
+                </div>
+
+                <!-- Canvas Grid & Background Style Toggle (Whiteboard Mode) -->
+                <button id="toggleCanvasGridBtn" class="canvas-style-btn" title="Toggle Grid / Ruled / Dark Canvas">
+                    <span>▦</span> Canvas Grid: <strong id="gridStyleName">Grid</strong>
+                </button>
+
+                <!-- Actions Row -->
+                <div class="dock-actions-row">
+                    <button id="clearCanvasBtn" class="clear-notes-btn" title="Clear Canvas (Closed Fist)">
+                        <span>🗑</span> Clear
+                    </button>
+                    <button id="saveSlideBtn" class="save-artifact-btn" title="Export as PNG Image">
+                        <span>💾</span> Save
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3D Model Selector Card (Only shown in 3D Inspector Mode) -->
+            <div class="sidebar-card model-select-card" id="modelSelectCard" style="display:none;">
+                <div class="card-header">
+                    <span class="card-icon">🌐</span>
+                    <span class="card-title">3D Spatial Models</span>
+                </div>
+                <div class="model-buttons-grid">
+                    <button class="model-btn active" data-model="polyhedron">
+                        <span>🔷</span> Polyhedron
+                    </button>
+                    <button class="model-btn" data-model="dna">
+                        <span>🧬</span> DNA Helix
+                    </button>
+                    <button class="model-btn" data-model="molecule">
+                        <span>⚛️</span> Molecule
+                    </button>
+                    <button class="model-btn" data-model="torus">
+                        <span>🪐</span> Quantum Ring
+                    </button>
+                </div>
+                
+                <!-- 3D Controls -->
+                <div class="model-extra-controls">
+                    <button id="toggle3DAutoRotateBtn" class="model-ctrl-btn active" title="Toggle Auto Rotation">
+                        <span>🔄</span> Auto Spin
+                    </button>
+                    <button id="toggle3DWireframeBtn" class="model-ctrl-btn" title="Toggle Hologram Wireframe">
+                        <span>🕸️</span> Wireframe
+                    </button>
+                    <button id="reset3DViewBtn" class="model-ctrl-btn" title="Reset 3D Orientation">
+                        <span>🎯</span> Center
+                    </button>
+                </div>
+
+                <div class="model-hint">
+                    👋 Move open palm to orbit rotate • 👐 Spread 2 hands to zoom
+                </div>
+            </div>
+
+            <!-- Audience Reactions Card -->
+            <div class="sidebar-card reactions-card">
+                <div class="card-header">
+                    <span class="card-icon">💬</span>
+                    <span class="card-title">Reactions</span>
+                </div>
+                <div class="reactions-grid">
+                    <button class="reaction-btn" data-emoji="❤️" title="Love">❤️</button>
+                    <button class="reaction-btn" data-emoji="🔥" title="Fire">🔥</button>
+                    <button class="reaction-btn" data-emoji="👏" title="Clap">👏</button>
+                    <button class="reaction-btn" data-emoji="🎉" title="Celebrate">🎉</button>
+                    <button class="reaction-btn" data-emoji="🚀" title="Rocket">🚀</button>
+                    <button class="reaction-btn" data-emoji="💡" title="Idea">💡</button>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- ── Center Spatial Stage ── -->
+        <main class="stage">
+
+            <!-- Ambient Glow Aura -->
+            <div class="stage-ambient-glow" id="stageGlow"></div>
+
+            <div class="viewport-container" id="viewportContainer">
+
+                <!-- ── LAYER 1: Air Whiteboard Canvas (Active in Mode 1) ── -->
+                <div class="whiteboard-layer grid-pattern" id="whiteboardLayer">
+                    <canvas id="whiteboardCanvas" class="whiteboard-canvas"></canvas>
+                </div>
+
+                <!-- ── LAYER 2: Presentation Deck View (Active in Mode 2) ── -->
+                <div class="deck-layer" id="deckLayer" style="display:none;">
+                    <img id="slideImage" class="slide-img" src="" alt="Presentation Slide">
+                    <div id="spotlightOverlay" class="spotlight-overlay" style="display:none;"></div>
+                </div>
+
+                <!-- ── LAYER 3: 3D Spatial Inspector View (Active in Mode 3) ── -->
+                <div class="model-3d-layer" id="model3dLayer" style="display:none;">
+                    <div id="threejsContainer" class="threejs-container"></div>
+                    <div class="model-overlay-hud">
+                        <span class="hud-tag">3D SPATIAL VISUALIZER</span>
+                        <h3 id="modelTitleDisplay">Geometric Icosahedron Solid</h3>
+                        <p>Real-Time WebGL Spatial Orbit Manipulation</p>
+                    </div>
+                </div>
+
+                <!-- ── Top Overlays (Drawing Canvas, Particles, Laser, Toast) ── -->
+                <canvas id="drawingCanvas" class="drawing-canvas"></canvas>
+                <canvas id="laserTrailCanvas" class="laser-trail-canvas"></canvas>
+                <div id="particlesContainer" class="particles-container"></div>
+                <div id="laserDot" class="laser-dot" style="display:none;top:50%;left:50%;">
+                    <div class="laser-core"></div>
+                    <div class="laser-pulse-ring"></div>
+                </div>
+                <div id="eraserCircle" class="eraser-circle" style="display:none;top:50%;left:50%;">
+                    <div class="eraser-vortex-ring"></div>
+                    <span class="eraser-icon">🧹</span>
+                </div>
+                <div id="arHandTracker" class="ar-hand-tracker" style="display:none;top:50%;left:50%;">
+                    <div class="ar-tracker-ring"></div>
+                    <div class="ar-tracker-icon" id="arTrackerIcon">👌</div>
+                    <span class="ar-tracker-label" id="arTrackerLabel">Air Draw</span>
+                </div>
+
+                <!-- Deck Navigation Arrows (Mode 2) -->
+                <button class="arrow arrow-l" id="prevSlideBtn" title="Previous Slide (Left Arrow / Swipe Left)">
+                    <span>‹</span>
+                </button>
+                <button class="arrow arrow-r" id="nextSlideBtn" title="Next Slide (Right Arrow / Swipe Right)">
+                    <span>›</span>
+                </button>
+
+                <!-- Action Notification Toast Alert -->
+                <div class="toast" id="actionToast" style="display:none;">
+                    <span id="toastMsg"></span>
+                </div>
+
+                <!-- Voice Command Listening Indicator -->
+                <div class="voice-indicator" id="voiceIndicator" style="display:none;">
+                    <div class="voice-pulse-ring"></div>
+                    <div class="voice-equalizer">
+                        <span class="eq-bar"></span>
+                        <span class="eq-bar"></span>
+                        <span class="eq-bar"></span>
+                        <span class="eq-bar"></span>
+                    </div>
+                    <span class="voice-status-text" id="voiceStatusText">🎙️ Listening... Say "Next", "Laser", "3D", "Clear"</span>
+                    <div class="voice-quick-cmds">
+                        <button class="v-cmd-chip" data-cmd="next">👉 Next</button>
+                        <button class="v-cmd-chip" data-cmd="back">👈 Back</button>
+                        <button class="v-cmd-chip" data-cmd="laser">🔴 Laser</button>
+                        <button class="v-cmd-chip" data-cmd="model">🌐 3D</button>
+                        <button class="v-cmd-chip" data-cmd="clear">🧹 Clear</button>
+                    </div>
+                </div>
+
+                <!-- Speaker Notes & Teleprompter Drawer (Mode 2) -->
+                <div class="notes-drawer" id="notesDrawer">
+                    <div class="notes-header">
+                        <div class="notes-title-group">
+                            <span class="notes-icon">📝</span>
+                            <span class="notes-title">Presenter Teleprompter & Notes</span>
+                        </div>
+                        <button class="notes-collapse-btn" id="collapseNotesBtn" title="Hide Teleprompter">✕</button>
+                    </div>
+                    <div class="notes-content" id="speakerNotesText">
+                        AeroSense Presentation Notes: Use hand gestures (👉 / 👈) or voice ("Next" / "Back") to navigate slides.
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Bottom Slide Filmstrip Carousel (Only in Mode 2) -->
+            <div class="filmstrip-container" id="filmstripContainer" style="display:none;">
+                <div class="filmstrip" id="thumbnailsBar"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ── Presentation Upload Modal ── -->
+    <div class="modal-overlay" id="uploadModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-top">
+                <div class="modal-title-group">
+                    <span class="modal-icon">⬆</span>
+                    <h2>Upload Presentation Deck</h2>
+                </div>
+                <button class="modal-x" id="closeUploadModalBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="dropzone" id="dropzone">
+                    <div class="dz-icon">📄</div>
+                    <div class="dz-title">Drag & Drop PowerPoint (.pptx) or PDF (.pdf)</div>
+                    <div class="dz-sub">Converted into vector slides with synchronized speaker notes</div>
+                    <button class="btn-browse" onclick="document.getElementById('fileInput').click()">Browse File</button>
+                    <input type="file" id="fileInput" accept=".pdf,.pptx,.ppt" style="display:none;">
+                </div>
+                <div id="uploadStatus" class="upload-progress-box" style="display:none;">
+                    <div class="spinner"></div>
+                    <span id="uploadStatusText">Converting slides & extracting notes… Please wait.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Presentation Analytics Modal ── -->
+    <div class="modal-overlay" id="analyticsModal" style="display:none;">
+        <div class="modal modal-lg">
+            <div class="modal-top">
+                <div class="modal-title-group">
+                    <span class="modal-icon">📊</span>
+                    <h2>Workspace & Presentation Analytics</h2>
+                </div>
+                <button class="modal-x" id="closeAnalyticsModalBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="analytics-stat-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Total Duration</span>
+                        <strong class="stat-val" id="analyticsTotalTime">00:00</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Avg. Time / Slide</span>
+                        <strong class="stat-val" id="analyticsAvgTime">0.0s</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Total Gestures</span>
+                        <strong class="stat-val" id="analyticsTotalGestures">0</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Pacing Score</span>
+                        <strong class="stat-val pacing-pill" id="analyticsPacing">Optimal</strong>
+                    </div>
+                </div>
+
+                <div class="analytics-section-title">⏱️ Slide Viewing Duration Breakdown</div>
+                <div class="analytics-table-container">
+                    <table class="analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Slide #</th>
+                                <th>Duration</th>
+                                <th>Time Share</th>
+                                <th>Pacing Bar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analyticsTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="analytics-actions">
+                    <button id="downloadReportBtn" class="btn-primary-action">
+                        <span>📥</span> Download JSON Report
+                    </button>
+                    <button id="resetAnalyticsBtn" class="btn-secondary-action">
+                        <span>↻</span> Reset Session Metrics
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Settings Modal ── -->
+    <div class="modal-overlay" id="settingsModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-top">
+                <div class="modal-title-group">
+                    <span class="modal-icon">⚙️</span>
+                    <h2>Spatial Studio Settings</h2>
+                </div>
+                <button class="modal-x" id="closeSettingsModalBtn">✕</button>
+            </div>
+            <div class="modal-body settings-form">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <strong>AI Vision Engine</strong>
+                        <p>Switch between Client WebAssembly and Python REST Classifier</p>
+                    </div>
+                    <select id="engineSelect" class="setting-select">
+                        <option value="browser">Browser WASM (Ultra Fast 60 FPS)</option>
+                        <option value="python">Python Server AI (/api/process_frame)</option>
+                    </select>
+                </div>
+
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <strong>Gesture Cooldown: <span id="cooldownValDisplay">600ms</span></strong>
+                        <p>Prevents duplicate action triggers</p>
+                    </div>
+                    <input type="range" id="cooldownSlider" min="200" max="1200" step="50" value="600" class="setting-slider">
+                </div>
+
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <strong>Spotlight Beam Radius: <span id="spotlightRadiusDisplay">140px</span></strong>
+                        <p>Radius of illuminated spotlight area</p>
+                    </div>
+                    <input type="range" id="spotlightSlider" min="80" max="250" step="10" value="140" class="setting-slider">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Gesture Cheatsheet Modal ── -->
+    <div class="modal-overlay" id="helpModal" style="display:none;">
+        <div class="modal modal-lg">
+            <div class="modal-top">
+                <div class="modal-title-group">
+                    <span class="modal-icon">✨</span>
+                    <h2>AeroSense AI Spatial Gestures Guide</h2>
+                </div>
+                <button class="modal-x" id="closeHelpModalBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="cheat-grid">
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">👌</div>
+                        <div class="cheat-text">
+                            <b>Pinch & Air Draw</b>
+                            <p>Pinch thumb + index finger to draw in mid-air</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">📐</div>
+                        <div class="cheat-text">
+                            <b>AI Shape Snapping</b>
+                            <p>Draw rough circle or box with Shape Tool to snap</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">✊</div>
+                        <div class="cheat-text">
+                            <b>Air Eraser</b>
+                            <p>Make a closed fist to erase drawings in real time</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">🖐</div>
+                        <div class="cheat-text">
+                            <b>3D Orbit Manipulator</b>
+                            <p>Move open palm to rotate 3D diagrams & objects</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">👉</div>
+                        <div class="cheat-text">
+                            <b>Next Slide</b>
+                            <p>Swipe hand to the right (Voice: "Next")</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">👈</div>
+                        <div class="cheat-text">
+                            <b>Previous Slide</b>
+                            <p>Swipe hand to the left (Voice: "Back")</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">☝</div>
+                        <div class="cheat-text">
+                            <b>Virtual Laser</b>
+                            <p>Raise index finger to cast glowing laser dot</p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">✌️</div>
+                        <div class="cheat-text">
+                            <b>Victory Confetti</b>
+                            <p>Flash V-sign for celebration confetti blast</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analytics-section-title" style="margin-top: 24px;">🎙️ Supported Hands-Free Voice Commands</div>
+                <div class="cheat-grid" style="margin-top: 12px;">
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">🗣️</div>
+                        <div class="cheat-text">
+                            <b>Slide Navigation</b>
+                            <p>Say: <code>"Next"</code>, <code>"Back"</code>, <code>"Previous"</code>, <code>"Aage"</code></p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">🎨</div>
+                        <div class="cheat-text">
+                            <b>Mode Switching</b>
+                            <p>Say: <code>"Whiteboard"</code>, <code>"Presentation"</code>, <code>"3D Model"</code></p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">✏️</div>
+                        <div class="cheat-text">
+                            <b>Creative Tools</b>
+                            <p>Say: <code>"Laser"</code>, <code>"Pen"</code>, <code>"Eraser"</code>, <code>"Spotlight"</code>, <code>"Rainbow"</code></p>
+                        </div>
+                    </div>
+                    <div class="cheat-item">
+                        <div class="cheat-emoji">⚡</div>
+                        <div class="cheat-text">
+                            <b>Quick Actions</b>
+                            <p>Say: <code>"Clear"</code>, <code>"Camera On"</code>, <code>"Camera Off"</code>, <code>"Auto Spin"</code></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Controller Scripts -->
+    <script src="{{ url_for('static', filename='js/gesture_engine.js') }}?v=34.0"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=34.0"></script>
+</body>
+
+</html>
